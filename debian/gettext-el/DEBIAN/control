@@ -1,0 +1,12 @@
+Package: gettext-el
+Source: gettext
+Version: 0.20.2.1-10build1
+Architecture: all
+Maintainer: Santiago Vila <sanvila@debian.org>
+Installed-Size: 184
+Depends: gettext, emacs | emacsen
+Section: lisp
+Priority: optional
+Homepage: https://www.gnu.org/software/gettext/
+Description: Emacs po-mode for editing gettext .po files
+ This package contains po-mode.el for easy .po editing using emacs.

@@ -1,0 +1,14 @@
+autopoint_0.20.2.1-10build1_all.deb devel optional
+gettext-base-dbgsym_0.20.2.1-10build1_arm64.deb debug optional automatic=yes
+gettext-base_0.20.2.1-10build1_arm64.deb utils standard
+gettext-dbgsym_0.20.2.1-10build1_arm64.deb debug optional automatic=yes
+gettext-doc_0.20.2.1-10build1_all.deb doc optional
+gettext-el_0.20.2.1-10build1_all.deb lisp optional
+gettext_0.20.2.1-10build1_arm64.buildinfo devel optional
+gettext_0.20.2.1-10build1_arm64.deb devel optional
+libasprintf-dev_0.20.2.1-10build1_arm64.deb libdevel optional
+libasprintf0v5-dbgsym_0.20.2.1-10build1_arm64.deb debug optional automatic=yes
+libasprintf0v5_0.20.2.1-10build1_arm64.deb libs optional
+libgettextpo-dev_0.20.2.1-10build1_arm64.deb libdevel optional
+libgettextpo0-dbgsym_0.20.2.1-10build1_arm64.deb debug optional automatic=yes
+libgettextpo0_0.20.2.1-10build1_arm64.deb libs optional

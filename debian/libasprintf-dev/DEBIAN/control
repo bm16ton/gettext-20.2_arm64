@@ -1,0 +1,16 @@
+Package: libasprintf-dev
+Source: gettext
+Version: 0.20.2.1-10build1
+Architecture: arm64
+Maintainer: Santiago Vila <sanvila@debian.org>
+Installed-Size: 41
+Depends: libasprintf0v5 (= 0.20.2.1-10build1)
+Suggests: gettext-doc
+Breaks: gettext (<< 0.18.1.1-10)
+Replaces: gettext (<< 0.18.1.1-10)
+Section: libdevel
+Priority: optional
+Multi-Arch: same
+Homepage: https://www.gnu.org/software/gettext/
+Description: use fprintf and friends in C++ - static libraries and headers
+ This package contains development files for the libasprintf library.

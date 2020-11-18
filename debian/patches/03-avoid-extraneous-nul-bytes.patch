@@ -1,0 +1,22 @@
+From: Bruno Haible <bruno@clisp.org>
+Subject: Avoid extraneous NUL bytes in .mo files.
+Bug-Debian: https://bugs.debian.org/872869
+X-Debian-version: 0.19.8.1-4
+
+--- a/gettext-tools/src/msgl-header.c
++++ b/gettext-tools/src/msgl-header.c
+@@ -166,6 +166,7 @@
+               }
+ 
+             mp->msgstr = new_header;
++            mp->msgstr_len = strlen (new_header) + 1;
+           }
+     }
+ }
+@@ -235,5 +236,6 @@
+           }
+         
+         mp->msgstr = new_header;
++        mp->msgstr_len = strlen (new_header) + 1;
+       }
+ }

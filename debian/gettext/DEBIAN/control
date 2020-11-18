@@ -1,0 +1,16 @@
+Package: gettext
+Version: 0.20.2.1-10build1
+Architecture: arm64
+Maintainer: Santiago Vila <sanvila@debian.org>
+Installed-Size: 7500
+Depends: libc6 (>= 2.27), libgomp1 (>= 6), libtinfo6 (>= 6), libunistring2 (>= 0.9.7), libxml2 (>= 2.9.1), gettext-base, dpkg (>= 1.15.4) | install-info
+Recommends: curl | wget | lynx
+Suggests: gettext-doc, autopoint, libasprintf-dev, libgettextpo-dev
+Breaks: autopoint (<= 0.17-11)
+Section: devel
+Priority: optional
+Multi-Arch: foreign
+Homepage: https://www.gnu.org/software/gettext/
+Description: GNU Internationalization utilities
+ Interesting for authors or maintainers of other packages or programs
+ which they want to see internationalized.

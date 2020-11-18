@@ -1,0 +1,13 @@
+Package: libasprintf0v5-dbgsym
+Source: gettext
+Version: 0.20.2.1-10build1
+Auto-Built-Package: debug-symbols
+Architecture: arm64
+Maintainer: Santiago Vila <sanvila@debian.org>
+Installed-Size: 40
+Depends: libasprintf0v5 (= 0.20.2.1-10build1)
+Section: debug
+Priority: optional
+Multi-Arch: same
+Description: debug symbols for libasprintf0v5
+Build-Ids: 40ae66b073615cd32442f81863f719241e4ce457

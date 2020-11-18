@@ -1,0 +1,4 @@
+usr/share/man/man3/gettext.3.gz  usr/share/man/man3/dcgettext.3.gz
+usr/share/man/man3/gettext.3.gz  usr/share/man/man3/dgettext.3.gz
+usr/share/man/man3/ngettext.3.gz usr/share/man/man3/dcngettext.3.gz
+usr/share/man/man3/ngettext.3.gz usr/share/man/man3/dngettext.3.gz

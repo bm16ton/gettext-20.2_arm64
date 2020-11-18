@@ -1,0 +1,276 @@
+From: John Darrington <john@darrington.wattle.id.au>
+Subject: msgfmt: Remove POT-Creation-Date field from the header in the output.
+Bug-Debian: https://bugs.debian.org/792687
+X-Debian-version: 0.19.8.1-3
+
+--- a/gettext-tools/src/msgl-header.c
++++ b/gettext-tools/src/msgl-header.c
+@@ -30,16 +30,12 @@
+ #define SIZEOF(a) (sizeof(a) / sizeof(a[0]))
+ 
+ 
+-void
+-msgdomain_list_set_header_field (msgdomain_list_ty *mdlp,
+-                                 const char *field, const char *value)
++/* The known fields in their usual order.  */
++static const struct
+ {
+-  /* The known fields in their usual order.  */
+-  static const struct
+-    {
+-      const char *name;
+-      size_t len;
+-    }
++  const char *name;
++  size_t len;
++}
+   known_fields[] =
+     {
+       { "Project-Id-Version:", sizeof ("Project-Id-Version:") - 1 },
+@@ -54,6 +50,11 @@
+       { "Content-Transfer-Encoding:",
+         sizeof ("Content-Transfer-Encoding:") - 1 }
+     };
++
++void
++msgdomain_list_set_header_field (msgdomain_list_ty *mdlp,
++                                 const char *field, const char *value)
++{
+   size_t field_len;
+   int field_index;
+   size_t k, i;
+@@ -168,3 +169,71 @@
+           }
+     }
+ }
++
++
++void
++message_list_delete_header_field (message_list_ty *mlp,
++                                  const char *field)
++{
++  size_t j;
++  int field_index;
++  size_t k;
++
++  /* Search the field in known_fields[].  */
++  field_index = -1;
++  for (k = 0; k < SIZEOF (known_fields); k++)
++    if (strcmp (known_fields[k].name, field) == 0)
++      {
++        field_index = k;
++        break;
++      }
++
++  size_t field_len;
++  field_len = strlen (field);
++
++  /* Search the header entry.  */
++  for (j = 0; j < mlp->nitems; j++)
++    if (is_header (mlp->item[j]) && !mlp->item[j]->obsolete)
++      {
++        message_ty *mp = mlp->item[j];
++
++        /* Modify the header entry.  */
++        const char *header = mp->msgstr;
++        char *new_header =
++          XCALLOC (strlen (header) + 1,
++                    char);
++
++        /* Test whether the field already occurs in the header entry.  */
++        const char *h;
++
++        for (h = header; *h != '\0'; )
++          {
++            if (strncmp (h, field, field_len) == 0)
++              break;
++            h = strchr (h, '\n');
++            if (h == NULL)
++              break;
++            h++;
++          }
++        if (h != NULL && *h != '\0')
++          {
++            /* Replace the field.  */
++            char *p = new_header;
++            memcpy (p, header, h - header);
++            p += h - header;
++            h = strchr (h, '\n');
++            if (h != NULL)
++              {
++                h++;
++                stpcpy (p, h);
++              }
++          }
++        else
++          {
++            char *p = new_header;
++            p = stpcpy (p, header);
++          }
++        
++        mp->msgstr = new_header;
++      }
++}
+--- a/gettext-tools/src/msgl-header.h
++++ b/gettext-tools/src/msgl-header.h
+@@ -34,6 +34,9 @@
+        msgdomain_list_set_header_field (msgdomain_list_ty *mdlp,
+                                         const char *field, const char *value);
+ 
++extern void
++       message_list_delete_header_field (message_list_ty *mlp, const char *field);
++
+ 
+ #ifdef __cplusplus
+ }
+--- a/gettext-tools/src/write-csharp.c
++++ b/gettext-tools/src/write-csharp.c
+@@ -78,6 +78,7 @@
+ #include "message.h"
+ #include "msgfmt.h"
+ #include "msgl-iconv.h"
++#include "msgl-header.h"
+ #include "plural-exp.h"
+ #include "po-charset.h"
+ #include "xalloc.h"
+@@ -645,6 +646,8 @@
+   /* Convert the messages to Unicode.  */
+   iconv_message_list (mlp, canon_encoding, po_charset_utf8, NULL);
+ 
++  message_list_delete_header_field (mlp, "POT-Creation-Date:");
++  
+   /* Create a temporary directory where we can put the C# file.
+      A simple temporary file would also be possible but would require us to
+      define our own variant of mkstemp(): On one hand the functions mktemp(),
+--- a/gettext-tools/src/write-desktop.c
++++ b/gettext-tools/src/write-desktop.c
+@@ -29,6 +29,7 @@
+ #include <stdio.h>
+ #include "error.h"
+ #include "msgl-iconv.h"
++#include "msgl-header.h"
+ #include "po-charset.h"
+ #include "read-catalog.h"
+ #include "read-po.h"
+@@ -203,6 +204,8 @@
+   /* Convert the messages to Unicode.  */
+   iconv_message_list (mlp, canon_encoding, po_charset_utf8, NULL);
+ 
++  message_list_delete_header_field (mlp, "POT-Creation-Date:");
++  
+   /* Create a single-element operands and run the bulk operation on it.  */
+   operand.language = (char *) locale_name;
+   operand.mlp = mlp;
+--- a/gettext-tools/src/write-java.c
++++ b/gettext-tools/src/write-java.c
+@@ -61,6 +61,7 @@
+ #include "message.h"
+ #include "msgfmt.h"
+ #include "msgl-iconv.h"
++#include "msgl-header.h"
+ #include "plural-exp.h"
+ #include "po-charset.h"
+ #include "xalloc.h"
+@@ -1066,6 +1067,8 @@
+   /* Convert the messages to Unicode.  */
+   iconv_message_list (mlp, canon_encoding, po_charset_utf8, NULL);
+ 
++  message_list_delete_header_field (mlp, "POT-Creation-Date:");
++
+   if (output_source)
+     {
+       tmpdir = NULL;
+--- a/gettext-tools/src/write-mo.c
++++ b/gettext-tools/src/write-mo.c
+@@ -48,6 +48,9 @@
+ #include "binary-io.h"
+ #include "fwriteerror.h"
+ #include "gettext.h"
++#include "read-catalog.h"
++#include "read-stringtable.h"
++#include "msgl-header.h"
+ 
+ #define _(str) gettext (str)
+ 
+@@ -804,6 +807,7 @@
+ 
+       if (output_file != NULL)
+         {
++          message_list_delete_header_field (mlp, "POT-Creation-Date:");
+           write_table (output_file, mlp);
+ 
+           /* Make sure nothing went wrong.  */
+--- a/gettext-tools/src/write-qt.c
++++ b/gettext-tools/src/write-qt.c
+@@ -35,6 +35,7 @@
+ #include "message.h"
+ #include "po-charset.h"
+ #include "msgl-iconv.h"
++#include "msgl-header.h"
+ #include "hash-string.h"
+ #include "unistr.h"
+ #include "xalloc.h"
+@@ -742,6 +743,7 @@
+ 
+       if (output_file != NULL)
+         {
++          message_list_delete_header_field (mlp, "POT-Creation-Date:");
+           write_qm (output_file, mlp);
+ 
+           /* Make sure nothing went wrong.  */
+--- a/gettext-tools/src/write-resources.c
++++ b/gettext-tools/src/write-resources.c
+@@ -38,6 +38,7 @@
+ #include "message.h"
+ #include "msgfmt.h"
+ #include "msgl-iconv.h"
++#include "msgl-header.h"
+ #include "po-charset.h"
+ #include "xalloc.h"
+ #include "concat-filename.h"
+@@ -114,6 +115,8 @@
+                                   const char *domain_name,
+                                   const char *file_name)
+ {
++  message_list_delete_header_field (mlp, "POT-Creation-Date:");
++  
+   /* If no entry for this domain don't even create the file.  */
+   if (mlp->nitems != 0)
+     {
+--- a/gettext-tools/src/write-tcl.c
++++ b/gettext-tools/src/write-tcl.c
+@@ -34,6 +34,7 @@
+ #include "xerror.h"
+ #include "message.h"
+ #include "msgl-iconv.h"
++#include "msgl-header.h"
+ #include "po-charset.h"
+ #include "xalloc.h"
+ #include "xmalloca.h"
+@@ -216,6 +217,7 @@
+         return 1;
+       }
+ 
++    message_list_delete_header_field (mlp, "POT-Creation-Date:");
+     write_msg (output_file, mlp, frobbed_locale_name);
+ 
+     /* Make sure nothing went wrong.  */
+--- a/gettext-tools/src/write-xml.c
++++ b/gettext-tools/src/write-xml.c
+@@ -29,6 +29,7 @@
+ #include <stdio.h>
+ #include "error.h"
+ #include "msgl-iconv.h"
++#include "msgl-header.h"
+ #include "po-charset.h"
+ #include "read-catalog.h"
+ #include "read-po.h"
+@@ -94,6 +95,8 @@
+   /* Convert the messages to Unicode.  */
+   iconv_message_list (mlp, canon_encoding, po_charset_utf8, NULL);
+ 
++  message_list_delete_header_field (mlp, "POT-Creation-Date:");
++  
+   /* Create a single-element operands and run the bulk operation on it.  */
+   operand.language = (char *) locale_name;
+   operand.mlp = mlp;

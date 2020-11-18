@@ -1,0 +1,12 @@
+Package: gettext-doc
+Source: gettext
+Version: 0.20.2.1-10build1
+Architecture: all
+Maintainer: Santiago Vila <sanvila@debian.org>
+Installed-Size: 1887
+Section: doc
+Priority: optional
+Homepage: https://www.gnu.org/software/gettext/
+Description: Documentation for GNU gettext
+ This package contains the HTML documentation for GNU gettext, as well as
+ simple "hello world" examples in several programming languages.

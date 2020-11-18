@@ -1,0 +1,72 @@
+From: Santiago Vila <sanvila@debian.org>
+Subject: Add preliminary support for Java 12..17.
+Bug-Debian: https://bugs.debian.org/910246
+X-Debian-version: 0.19.8.1-8
+
+This is a combination of all the patches applied by Bruno Haible
+to upstream git to support Java 12 and beyond, namely:
+
+https://git.savannah.gnu.org/gitweb/?p=gnulib.git;a=commitdiff;h=0782fa4dc036a709d5501a8712c5331489c28be9
+
+Changes to javacomp.m4 have been applied to both files at
+gettext-tools/gnulib-m4 and gettext-runtime/gnulib-m4.
+
+--- a/gettext-runtime/gnulib-m4/javacomp.m4
++++ b/gettext-runtime/gnulib-m4/javacomp.m4
+@@ -127,6 +127,10 @@
+        }`
+        case "$target_version" in
+          1.1 | 1.2 | 1.3 | 1.4 | 1.5 | 1.6 | 1.7 | 1.8 | 9 | 10 | 11) ;;
++         12 | 13 | 14 | 15 | 16 | 17)
++           dnl Assume that these (not yet released) Java versions will behave
++           dnl like the preceding ones.
++           target_version=11 ;;
+          null)
+            dnl JDK 1.1.X returns null.
+            target_version=1.1 ;;
+--- a/gettext-tools/gnulib-lib/javacomp.c
++++ b/gettext-tools/gnulib-lib/javacomp.c
+@@ -98,8 +98,9 @@
+     {
+       /* Determine the version from the found JVM.  */
+       java_version_cache = javaexec_version ();
+-      if (java_version_cache == NULL
+-          || !((java_version_cache[0] == '1'
++      if (java_version_cache == NULL)
++        java_version_cache = "1.1";
++      else if ((java_version_cache[0] == '1'
+                 && java_version_cache[1] == '.'
+                 && java_version_cache[2] >= '1' && java_version_cache[2] <= '8'
+                 && java_version_cache[3] == '\0')
+@@ -108,7 +109,17 @@
+                || (java_version_cache[0] == '1'
+                    && (java_version_cache[1] >= '0'
+                        && java_version_cache[1] <= '1')
+-                   && java_version_cache[2] == '\0')))
++                   && java_version_cache[2] == '\0'))
++        /* It's one of the valid target version values.  */
++        ;
++      else if (java_version_cache[0] == '1'
++               && (java_version_cache[1] >= '2'
++                   && java_version_cache[1] <= '7')
++               && java_version_cache[2] == '\0')
++        /* Assume that these (not yet released) Java versions will behave
++           like the preceding ones.  */
++        java_version_cache = "11";
++      else
+         java_version_cache = "1.1";
+     }
+   return java_version_cache;
+--- a/gettext-tools/gnulib-m4/javacomp.m4
++++ b/gettext-tools/gnulib-m4/javacomp.m4
+@@ -127,6 +127,10 @@
+        }`
+        case "$target_version" in
+          1.1 | 1.2 | 1.3 | 1.4 | 1.5 | 1.6 | 1.7 | 1.8 | 9 | 10 | 11) ;;
++         12 | 13 | 14 | 15 | 16 | 17)
++           dnl Assume that these (not yet released) Java versions will behave
++           dnl like the preceding ones.
++           target_version=11 ;;
+          null)
+            dnl JDK 1.1.X returns null.
+            target_version=1.1 ;;

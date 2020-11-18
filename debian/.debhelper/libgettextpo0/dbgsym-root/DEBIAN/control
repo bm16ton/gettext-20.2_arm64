@@ -1,0 +1,13 @@
+Package: libgettextpo0-dbgsym
+Source: gettext
+Version: 0.20.2.1-10build1
+Auto-Built-Package: debug-symbols
+Architecture: arm64
+Maintainer: Santiago Vila <sanvila@debian.org>
+Installed-Size: 463
+Depends: libgettextpo0 (= 0.20.2.1-10build1)
+Section: debug
+Priority: optional
+Multi-Arch: same
+Description: debug symbols for libgettextpo0
+Build-Ids: 06abf26925f8bd6ba915bfbefa89b54793b1d67e

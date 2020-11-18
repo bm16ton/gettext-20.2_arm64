@@ -1,0 +1,16 @@
+Package: libgettextpo0
+Source: gettext
+Version: 0.20.2.1-10build1
+Architecture: arm64
+Maintainer: Santiago Vila <sanvila@debian.org>
+Installed-Size: 374
+Depends: libc6 (>= 2.17), libunistring2 (>= 0.9.7)
+Breaks: gettext (<< 0.18.1.1-6)
+Replaces: gettext (<< 0.18.1.1-6)
+Section: libs
+Priority: optional
+Multi-Arch: same
+Homepage: https://www.gnu.org/software/gettext/
+Description: process PO files - shared library
+ This package contains the libgettextpo shared library for interfacing
+ programmatically with GNU gettext .po files.

@@ -1,0 +1,16 @@
+Package: libgettextpo-dev
+Source: gettext
+Version: 0.20.2.1-10build1
+Architecture: arm64
+Maintainer: Santiago Vila <sanvila@debian.org>
+Installed-Size: 715
+Depends: libgettextpo0 (= 0.20.2.1-10build1)
+Suggests: gettext-doc
+Breaks: gettext (<< 0.18.1.1-10)
+Replaces: gettext (<< 0.18.1.1-10)
+Section: libdevel
+Priority: optional
+Multi-Arch: same
+Homepage: https://www.gnu.org/software/gettext/
+Description: process PO files - static libraries and headers
+ This package contains development files for the libgettextpo library.

@@ -1,0 +1,948 @@
+From: Santiago Vila <sanvila@debian.org>
+Subject: Support Java 9
+Bug-Debian: https://bugs.debian.org/892733
+Bug-Debian: https://bugs.debian.org/893739
+X-Debian-version: 0.19.8.1-6
+
+This is a combination of all the patches applied by Bruno Haible
+to upstream git to fix Java 9 related problems.
+
+Changes to javacomp.m4 have been applied to both files at
+gettext-tools/gnulib-m4 and gettext-runtime/gnulib-m4.
+
+--- a/gettext-runtime/configure.ac
++++ b/gettext-runtime/configure.ac
+@@ -35,7 +35,7 @@
+ 
+ gt_JAVA_CHOICE
+ 
+-gt_JAVACOMP([1.3], [1.1])
++gt_JAVACOMP([1.5], [1.6])
+ AC_CHECK_PROG([JAR], [jar], [jar])
+ if test -n "$HAVE_JAVACOMP" && test -n "$JAR" && test "$JAVA_CHOICE" != no; then
+   BUILDJAVA=yes
+--- a/gettext-runtime/gnulib-m4/javacomp.m4
++++ b/gettext-runtime/gnulib-m4/javacomp.m4
+@@ -1,4 +1,4 @@
+-# javacomp.m4 serial 12
++# javacomp.m4 serial 15
+ dnl Copyright (C) 2001-2003, 2006-2007, 2009-2016 Free Software Foundation,
+ dnl Inc.
+ dnl This file is free software; the Free Software Foundation
+@@ -15,7 +15,14 @@
+ #           1.3             inner classes
+ #           1.4             assert keyword
+ #           1.5             generic classes and methods
+-#           1.6             (not yet supported)
++#           1.6             (not supported)
++#           1.7             switch(string)
++#           1.8             lambdas
++#           9               private interface methods
++#          10               type inference for local variables
++# Instead of source-version 1.6, use 1.5, since Java 6 did not introduce any
++# language changes. See
++# http://docs.oracle.com/javase/8/docs/technotes/guides/language/enhancements.html
+ #
+ # target-version can be:  classfile version:
+ #           1.1                 45.3
+@@ -24,6 +31,10 @@
+ #           1.4                 48.0
+ #           1.5                 49.0
+ #           1.6                 50.0
++#           1.7                 51.0
++#           1.8                 52.0
++#           9                   53.0
++#          10                   54.0
+ # The classfile version of a .class file can be determined through the "file"
+ # command. More portably, the classfile major version can be determined through
+ # "od -A n -t d1 -j 7 -N 1 classfile".
+@@ -33,12 +44,18 @@
+ #           1.1         JDK 1.1, jview
+ #           1.2         JDK/JRE 1.2
+ #           1.3         JDK/JRE 1.3, gij 3.3, 3.4
+-#           1.4         JDK/JRE 1.4, gij 4.0, 4.1
+-#           1.5         JDK/JRE 1.5
+-#           1.6         JDK/JRE 1.6
++#           1.4         JDK/JRE 1.4, gij 4.0 ... 4.2
++#           1.5         JDK/JRE 5, gij 4.3 ... 6
++#           1.6         JDK/JRE 6
++#           1.7         JDK/JRE 7
++#           1.8         JDK/JRE 8
++#           9           JDK/JRE 9
++#          10           JDK/JRE 10
+ # Note: gij >= 3.3 can in some cases handle classes compiled with -target 1.4,
+ # and gij >= 4.1 can in some cases partially handle classes compiled with
+-# -target 1.5, but I have no idea how complete this support is.
++# -target 1.5, but I have no idea how complete this support is. Similarly,
++# gcj >= 4.3 supports -ftarget=1.6, and gij >= 4.3 can in some cases handle
++# classes compiled with -target 1.6.
+ #
+ # Specifying target-version is useful when building a library (.jar) that is
+ # useful outside the given package. Omitting target-version is useful when
+@@ -47,14 +64,20 @@
+ # It is unreasonable to ask for:
+ #   - target-version < 1.4 with source-version >= 1.4, or
+ #   - target-version < 1.5 with source-version >= 1.5, or
+-#   - target-version < 1.6 with source-version >= 1.6,
+-# because even Sun's javac doesn't support these combinations.
++#   - target_version < 1.6 with source_version >= 1.6, or
++#   - target_version < 1.7 with source_version >= 1.7, or
++#   - target_version < 1.8 with source_version >= 1.8, or
++#   - target_version < 9 with source_version >= 9, or
++#   - target_version < 10 with source_version >= 10,
++# because even Sun's/Oracle's javac doesn't support these combinations.
+ #
+ # It is redundant to ask for a target-version > source-version, since the
+ # smaller target-version = source-version will also always work and newer JVMs
+-# support the older target-versions too. Except for the case
+-# target-version = 1.4, source-version = 1.3, which allows gcj versions 3.0
+-# to 3.2 to be used.
++# support the older target-versions too. Except for the cases
++#   - target-version = 1.4, source-version = 1.3, which allows gcj versions 3.0
++#     to 3.2 to be used,
++#   - target-version = 1.6, source-version = 1.5, which allows gcj versions
++#     >= 4.3 to be used.
+ 
+ AC_DEFUN([gt_JAVACOMP],
+ [
+@@ -99,7 +122,7 @@
+          CLASSPATH=.${CLASSPATH:+$CLASSPATH_SEPARATOR$CLASSPATH} $CONF_JAVA conftestver 2>&AS_MESSAGE_LOG_FD
+        }`
+        case "$target_version" in
+-         1.1 | 1.2 | 1.3 | 1.4 | 1.5 | 1.6) ;;
++         1.1 | 1.2 | 1.3 | 1.4 | 1.5 | 1.6 | 1.7 | 1.8 | 9 | 10) ;;
+          null)
+            dnl JDK 1.1.X returns null.
+            target_version=1.1 ;;
+@@ -117,6 +140,14 @@
+     1.4) goodcode='class conftest     { static { assert(true); } }'
+          failcode='class conftestfail<T> { T foo() { return null; } }' ;;
+     1.5) goodcode='class conftest<T>     { T foo() { return null; } }'
++         failcode='class conftestfail { void foo () { switch ("A") {} } }' ;;
++    1.7) goodcode='class conftest     { void foo () { switch ("A") {} } }'
++         failcode='class conftestfail { void foo () { Runnable r = () -> {}; } }' ;;
++    1.8) goodcode='class conftest     { void foo () { Runnable r = () -> {}; } }'
++         failcode='interface conftestfail { private void foo () {} }' ;;
++    9)   goodcode='interface conftest     { private void foo () {} }'
++         failcode='class conftestfail { public void m() { var i = new Integer(0); } }' ;;
++    10)  goodcode='class conftest     { public void m() { var i = new Integer(0); } }'
+          failcode='class conftestfail syntax error' ;;
+     *) AC_MSG_ERROR([invalid source-version argument to gt_@&t@JAVACOMP: $source_version]) ;;
+   esac
+@@ -127,6 +158,10 @@
+     1.4) cfversion=48 ;;
+     1.5) cfversion=49 ;;
+     1.6) cfversion=50 ;;
++    1.7) cfversion=51 ;;
++    1.8) cfversion=52 ;;
++    9)   cfversion=53 ;;
++    10)  cfversion=54 ;;
+     *) AC_MSG_ERROR([invalid target-version argument to gt_@&t@JAVACOMP: $target_version]) ;;
+   esac
+   # Function to output the classfile version of a file (8th byte) in decimal.
+@@ -154,14 +189,15 @@
+   dnl   bytecode, which crashes with a VerifyError when executed by Sun Java
+   dnl   1.3.1. The bug is registered as java/7066, see
+   dnl   http://gcc.gnu.org/bugzilla/show_bug.cgi?id=7066
+-  dnl   gcj 4.3 and newer has an option -ftarget=1.X.
++  dnl   gcj 4.3 and newer has an option -ftarget=1.X; the maximum supported
++  dnl   target-version is 1.6.
+   dnl
+   dnl   For gcj < 3.3, the source-version always is 1.3.
+   dnl   For 3.3 <= gcj < 4.3, the source-version defaults to 1.4; option
+   dnl   "-fno-assert" switches to source-version 1.3.
+   dnl   gcj >= 4.3 has an option -fsource=1.X.
+   dnl
+-  dnl The support of Sun javac for target-version and source-version:
++  dnl The support of Sun/Oracle javac for target-version and source-version:
+   dnl
+   dnl   javac 1.3:   -target 1.1 1.2 1.3               default: 1.1
+   dnl                                                  source always: 1.3
+@@ -181,6 +217,34 @@
+   dnl                -target 1.4 only possible with -source 1.3/1.4
+   dnl                -target 1.5 only possible with -source 1.3/1.4/1.5 or no -source
+   dnl
++  dnl   javac 1.7:   -target 1.1 1.2 1.3 1.4 1.5 1.6 1.7  default: 1.7
++  dnl                -source 1.3 1.4 1.5 1.6 1.7          default: 1.7
++  dnl                -target 1.1/1.2/1.3 only possible with -source 1.3
++  dnl                -target 1.4 only possible with -source 1.3/1.4
++  dnl                -target 1.5 only possible with -source 1.3/1.4/1.5
++  dnl                -target 1.6 only possible with -source 1.3/1.4/1.5/1.6
++  dnl
++  dnl   javac 1.8:   -target 1.1 1.2 1.3 1.4 1.5 1.6 1.7 1.8  default: 1.8
++  dnl                -source 1.3 1.4 1.5 1.6 1.7 1.8          default: 1.8
++  dnl                -target 1.1/1.2/1.3 only possible with -source 1.3
++  dnl                -target 1.4 only possible with -source 1.3/1.4
++  dnl                -target 1.5 only possible with -source 1.3/1.4/1.5
++  dnl                -target 1.6 only possible with -source 1.3/1.4/1.5/1.6
++  dnl                -target 1.7 only possible with -source 1.3/1.4/1.5/1.6/1.7
++  dnl
++  dnl   javac 9:     -target 1.6 1.7 1.8 9  default: 9
++  dnl                -source 1.6 1.7 1.8 9  default: 9
++  dnl                -target 1.6 only possible with -source 1.6
++  dnl                -target 1.7 only possible with -source 1.6/1.7
++  dnl                -target 1.8 only possible with -source 1.6/1.7/1.8
++  dnl
++  dnl   javac 10:    -target 1.6 1.7 1.8 9 10  default: 10
++  dnl                -source 1.6 1.7 1.8 9 10  default: 10
++  dnl                -target 1.6 only possible with -source 1.6
++  dnl                -target 1.7 only possible with -source 1.6/1.7
++  dnl                -target 1.8 only possible with -source 1.6/1.7/1.8
++  dnl                -target 9 only possible with -source 1.6/1.7/1.8/9
++  dnl
+   dnl The support of jikes for target-version and source-version:
+   dnl
+   dnl   jikes 1.14 does not have a way to specify the target-version. It
+@@ -322,6 +386,15 @@
+     else
+       dnl It's not gcj. Assume the classfile versions are correct.
+       dnl Try $JAVAC.
++      dnl The javac option '-source 1.5' has the same meaning as '-source 1.6',
++      dnl but since Java 9 supports only the latter, prefer the latter if a
++      dnl target_version >= 1.6 is requested.
++      if test "$source_version" = 1.5; then
++        case "$target_version" in
++          1.1 | 1.2 | 1.3 | 1.4 | 1.5) ;;
++          *) source_version='1.6' ;;
++        esac
++      fi
+       rm -f conftest.class
+       if { echo "$as_me:__oline__: $JAVAC -d . conftest.java" >&AS_MESSAGE_LOG_FD
+            $JAVAC -d . conftest.java >&AS_MESSAGE_LOG_FD 2>&1
+@@ -517,6 +590,15 @@
+       if { javac -version >/dev/null 2>/dev/null || test $? -le 2; } \
+          && ( if javac -help 2>&1 >/dev/null | grep at.dms.kjc.Main >/dev/null && javac -help 2>/dev/null | grep 'released.*2000' >/dev/null ; then exit 1; else exit 0; fi ); then
+         dnl OK, javac works.
++        dnl The javac option '-source 1.5' has the same meaning as '-source 1.6',
++        dnl but since Java 9 supports only the latter, prefer the latter if a
++        dnl target_version >= 1.6 is requested.
++        if test "$source_version" = 1.5; then
++          case "$target_version" in
++            1.1 | 1.2 | 1.3 | 1.4 | 1.5) ;;
++            *) source_version='1.6' ;;
++          esac
++        fi
+         dnl Now test whether it supports the desired target-version and
+         dnl source-version.
+         rm -f conftest.class
+--- a/gettext-tools/configure.ac
++++ b/gettext-tools/configure.ac
+@@ -44,7 +44,7 @@
+ AC_SUBST([BUILDJAVAEXE])
+ 
+ gt_JAVAEXEC
+-gt_JAVACOMP([1.3])
++gt_JAVACOMP([1.5])
+ AC_CHECK_PROG([JAR], [jar], [jar])
+ if test -n "$HAVE_JAVACOMP" && test -n "$JAR" && test "$JAVA_CHOICE" != no; then
+   BUILDJAVA=yes
+--- a/gettext-tools/examples/hello-java-awt/configure.ac
++++ b/gettext-tools/examples/hello-java-awt/configure.ac
+@@ -24,7 +24,7 @@
+ dnl Check whether we can execute Java programs.
+ gt_JAVAEXEC([TestAWT], [$srcdir/m4])
+ dnl Check whether we can build Java programs.
+-gt_JAVACOMP([1.3])
++gt_JAVACOMP([1.5])
+ AC_CHECK_PROG(JAR, jar, jar)
+ if test -n "$HAVE_JAVACOMP" && test -n "$JAR"; then
+   BUILDJAVA=yes
+--- a/gettext-tools/examples/hello-java-qtjambi/configure.ac
++++ b/gettext-tools/examples/hello-java-qtjambi/configure.ac
+@@ -26,7 +26,7 @@
+ dnl Check whether we can execute Java programs.
+ gt_JAVAEXEC([Test15], [$srcdir/m4])
+ dnl Check whether we can build Java programs.
+-gt_JAVACOMP([1.5], [1.5])
++gt_JAVACOMP([1.5], [1.6])
+ AC_CHECK_PROG(JAR, jar, jar)
+ if test -n "$HAVE_JAVACOMP" && test -n "$JAR"; then
+   BUILDJAVA=yes
+--- a/gettext-tools/examples/hello-java-swing/configure.ac
++++ b/gettext-tools/examples/hello-java-swing/configure.ac
+@@ -24,7 +24,7 @@
+ dnl Check whether we can execute Java programs.
+ gt_JAVAEXEC([TestAWT], [$srcdir/m4])
+ dnl Check whether we can build Java programs.
+-gt_JAVACOMP([1.3])
++gt_JAVACOMP([1.5])
+ AC_CHECK_PROG(JAR, jar, jar)
+ if test -n "$HAVE_JAVACOMP" && test -n "$JAR"; then
+   BUILDJAVA=yes
+--- a/gettext-tools/examples/hello-java/configure.ac
++++ b/gettext-tools/examples/hello-java/configure.ac
+@@ -24,7 +24,7 @@
+ dnl Check whether we can execute Java programs.
+ gt_JAVAEXEC
+ dnl Check whether we can build Java programs.
+-gt_JAVACOMP([1.3])
++gt_JAVACOMP([1.5])
+ AC_CHECK_PROG(JAR, jar, jar)
+ if test -n "$HAVE_JAVACOMP" && test -n "$JAR"; then
+   BUILDJAVA=yes
+--- a/gettext-tools/gnulib-lib/javacomp.c
++++ b/gettext-tools/gnulib-lib/javacomp.c
+@@ -99,9 +99,15 @@
+       /* Determine the version from the found JVM.  */
+       java_version_cache = javaexec_version ();
+       if (java_version_cache == NULL
+-          || !(java_version_cache[0] == '1' && java_version_cache[1] == '.'
+-               && (java_version_cache[2] >= '1' && java_version_cache[2] <= '6')
+-               && java_version_cache[3] == '\0'))
++          || !((java_version_cache[0] == '1'
++                && java_version_cache[1] == '.'
++                && java_version_cache[2] >= '1' && java_version_cache[2] <= '8'
++                && java_version_cache[3] == '\0')
++               || (java_version_cache[0] == '9'
++                   && java_version_cache[1] == '\0')
++               || (java_version_cache[0] == '1'
++                   && java_version_cache[1] == '0'
++                   && java_version_cache[2] == '\0')))
+         java_version_cache = "1.1";
+     }
+   return java_version_cache;
+@@ -110,14 +116,24 @@
+ /* ======================= Source version dependent ======================= */
+ 
+ /* Convert a source version to an index.  */
+-#define SOURCE_VERSION_BOUND 3 /* exclusive upper bound */
++#define SOURCE_VERSION_BOUND 7 /* exclusive upper bound */
+ static unsigned int
+ source_version_index (const char *source_version)
+ {
+-  if (source_version[0] == '1' && source_version[1] == '.'
+-      && (source_version[2] >= '3' && source_version[2] <= '5')
+-      && source_version[3] == '\0')
+-    return source_version[2] - '3';
++  if (source_version[0] == '1' && source_version[1] == '.')
++    {
++      if ((source_version[2] >= '3' && source_version[2] <= '5')
++          && source_version[3] == '\0')
++        return source_version[2] - '3';
++      if ((source_version[2] >= '7' && source_version[2] <= '8')
++          && source_version[3] == '\0')
++        return source_version[2] - '4';
++    }
++  else if (source_version[0] == '9' && source_version[1] == '\0')
++    return 5;
++  else if (source_version[0] == '1' && source_version[1] == '0'
++           && source_version[2] == '\0')
++    return 6;
+   error (EXIT_FAILURE, 0, _("invalid source_version argument to compile_java_class"));
+   return 0;
+ }
+@@ -132,6 +148,14 @@
+     return "class conftest { static { assert(true); } }\n";
+   if (strcmp (source_version, "1.5") == 0)
+     return "class conftest<T> { T foo() { return null; } }\n";
++  if (strcmp (source_version, "1.7") == 0)
++    return "class conftest { void foo () { switch (\"A\") {} } }\n";
++  if (strcmp (source_version, "1.8") == 0)
++    return "class conftest { void foo () { Runnable r = () -> {}; } }\n";
++  if (strcmp (source_version, "9") == 0)
++    return "interface conftest { private void foo () {} }\n";
++  if (strcmp (source_version, "10") == 0)
++    return "class conftest { public void m() { var i = new Integer(0); } }\n";
+   error (EXIT_FAILURE, 0, _("invalid source_version argument to compile_java_class"));
+   return NULL;
+ }
+@@ -147,6 +171,14 @@
+   if (strcmp (source_version, "1.4") == 0)
+     return "class conftestfail<T> { T foo() { return null; } }\n";
+   if (strcmp (source_version, "1.5") == 0)
++    return "class conftestfail { void foo () { switch (\"A\") {} } }\n";
++  if (strcmp (source_version, "1.7") == 0)
++    return "class conftestfail { void foo () { Runnable r = () -> {}; } }\n";
++  if (strcmp (source_version, "1.8") == 0)
++    return "interface conftestfail { private void foo () {} }\n";
++  if (strcmp (source_version, "9") == 0)
++    return "class conftestfail { public void m() { var i = new Integer(0); } }\n";
++  if (strcmp (source_version, "10") == 0)
+     return NULL;
+   error (EXIT_FAILURE, 0, _("invalid source_version argument to compile_java_class"));
+   return NULL;
+@@ -155,14 +187,19 @@
+ /* ======================= Target version dependent ======================= */
+ 
+ /* Convert a target version to an index.  */
+-#define TARGET_VERSION_BOUND 6 /* exclusive upper bound */
++#define TARGET_VERSION_BOUND 10 /* exclusive upper bound */
+ static unsigned int
+ target_version_index (const char *target_version)
+ {
+   if (target_version[0] == '1' && target_version[1] == '.'
+-      && (target_version[2] >= '1' && target_version[2] <= '6')
++      && (target_version[2] >= '1' && target_version[2] <= '8')
+       && target_version[3] == '\0')
+     return target_version[2] - '1';
++  else if (target_version[0] == '9' && target_version[1] == '\0')
++    return 8;
++  else if (target_version[0] == '1' && target_version[1] == '0'
++           && target_version[2] == '\0')
++    return 9;
+   error (EXIT_FAILURE, 0, _("invalid target_version argument to compile_java_class"));
+   return 0;
+ }
+@@ -184,10 +221,34 @@
+     return 49;
+   if (strcmp (target_version, "1.6") == 0)
+     return 50;
++  if (strcmp (target_version, "1.7") == 0)
++    return 51;
++  if (strcmp (target_version, "1.8") == 0)
++    return 52;
++  if (strcmp (target_version, "9") == 0)
++    return 53;
++  if (strcmp (target_version, "10") == 0)
++    return 54;
+   error (EXIT_FAILURE, 0, _("invalid target_version argument to compile_java_class"));
+   return 0;
+ }
+ 
++/* Return the source version to pass to javac.  */
++static const char *
++get_source_version_for_javac (const char *source_version,
++                              const char *target_version)
++{
++  /* The javac option '-source 1.5' has the same meaning as '-source 1.6',
++     but since Java 9 supports only the latter, prefer the latter if a
++     target_version >= 1.6 is requested.  */
++  if (strcmp (source_version, "1.5") == 0
++      && !(target_version[0] == '1' && target_version[1] == '.'
++           && (target_version[2] >= '1' && target_version[2] <= '5')
++           && target_version[3] == '\0'))
++    return "1.6";
++  return source_version;
++}
++
+ /* ======================== Compilation subroutines ======================== */
+ 
+ /* Try to compile a set of Java sources with $JAVAC.
+@@ -1055,6 +1116,7 @@
+ static bool
+ is_envjavac_nongcj_usable (const char *javac,
+                            const char *source_version,
++                           const char *source_version_for_javac,
+                            const char *target_version,
+                            bool *usablep,
+                            bool *source_option_p, bool *target_option_p)
+@@ -1110,7 +1172,7 @@
+           /* $JAVAC compiled conftest.java successfully.  */
+           /* Try adding -source option if it is useful.  */
+           char *javac_source =
+-            xasprintf ("%s -source %s", javac, source_version);
++            xasprintf ("%s -source %s", javac, source_version_for_javac);
+ 
+           unlink (compiled_file_name);
+ 
+@@ -1162,8 +1224,8 @@
+                                                   tmpdir->dir_name,
+                                                   false, false, false, true))
+                         /* $JAVAC compiled conftestfail.java successfully, and
+-                           "$JAVAC -source $source_version" rejects it.  So the
+-                           -source option is useful.  */
++                           "$JAVAC -source $source_version_for_javac" rejects it.
++                           So the -source option is useful.  */
+                         resultp->source_option = true;
+                     }
+                 }
+@@ -1194,7 +1256,7 @@
+                  successfully.  */
+               /* Try adding -source option if it is useful.  */
+               char *javac_target_source =
+-                xasprintf ("%s -source %s", javac_target, source_version);
++                xasprintf ("%s -source %s", javac_target, source_version_for_javac);
+ 
+               unlink (compiled_file_name);
+ 
+@@ -1250,7 +1312,7 @@
+                                                       true))
+                             /* "$JAVAC -target $target_version" compiled
+                                conftestfail.java successfully, and
+-                               "$JAVAC -target $target_version -source $source_version"
++                               "$JAVAC -target $target_version -source $source_version_for_javac"
+                                rejects it.  So the -source option is useful.  */
+                             resultp->source_option = true;
+                         }
+@@ -1268,7 +1330,7 @@
+                  -target and -source options. (Supported by Sun javac 1.4 and
+                  higher.)  */
+               char *javac_target_source =
+-                xasprintf ("%s -source %s", javac_target, source_version);
++                xasprintf ("%s -source %s", javac_target, source_version_for_javac);
+ 
+               unlink (compiled_file_name);
+ 
+@@ -1280,7 +1342,7 @@
+                   && get_classfile_version (compiled_file_name)
+                      <= corresponding_classfile_version (target_version))
+                 {
+-                  /* "$JAVAC -target $target_version -source $source_version"
++                  /* "$JAVAC -target $target_version -source $source_version_for_javac"
+                      compiled conftest.java successfully.  */
+                   resultp->source_option = true;
+                   resultp->target_option = true;
+@@ -1800,7 +1862,9 @@
+    -target option.
+    Return a failure indicator (true upon error).  */
+ static bool
+-is_javac_usable (const char *source_version, const char *target_version,
++is_javac_usable (const char *source_version,
++                 const char *source_version_for_javac,
++                 const char *target_version,
+                  bool *usablep, bool *source_option_p, bool *target_option_p)
+ {
+   /* The cache depends on the source_version and target_version.  */
+@@ -1845,7 +1909,7 @@
+ 
+       java_sources[0] = conftest_file_name;
+       if (!compile_using_javac (java_sources, 1,
+-                                false, source_version,
++                                false, source_version_for_javac,
+                                 false, target_version,
+                                 tmpdir->dir_name, false, false, false, true)
+           && stat (compiled_file_name, &statbuf) >= 0
+@@ -1858,7 +1922,7 @@
+ 
+           java_sources[0] = conftest_file_name;
+           if (!compile_using_javac (java_sources, 1,
+-                                    true, source_version,
++                                    true, source_version_for_javac,
+                                     false, target_version,
+                                     tmpdir->dir_name, false, false, false, true)
+               && stat (compiled_file_name, &statbuf) >= 0
+@@ -1891,7 +1955,7 @@
+ 
+                   java_sources[0] = conftest_file_name;
+                   if (!compile_using_javac (java_sources, 1,
+-                                            false, source_version,
++                                            false, source_version_for_javac,
+                                             false, target_version,
+                                             tmpdir->dir_name,
+                                             false, false, false, true)
+@@ -1901,13 +1965,13 @@
+ 
+                       java_sources[0] = conftest_file_name;
+                       if (compile_using_javac (java_sources, 1,
+-                                               true, source_version,
++                                               true, source_version_for_javac,
+                                                false, target_version,
+                                                tmpdir->dir_name,
+                                                false, false, false, true))
+                         /* javac compiled conftestfail.java successfully, and
+-                           "javac -source $source_version" rejects it.  So the
+-                           -source option is useful.  */
++                           "javac -source $source_version_for_javac" rejects it.
++                           So the -source option is useful.  */
+                         resultp->source_option = true;
+                     }
+                 }
+@@ -1923,7 +1987,7 @@
+ 
+           java_sources[0] = conftest_file_name;
+           if (!compile_using_javac (java_sources, 1,
+-                                    false, source_version,
++                                    false, source_version_for_javac,
+                                     true, target_version,
+                                     tmpdir->dir_name,
+                                     false, false, false, true)
+@@ -1938,7 +2002,7 @@
+ 
+               java_sources[0] = conftest_file_name;
+               if (!compile_using_javac (java_sources, 1,
+-                                        true, source_version,
++                                        true, source_version_for_javac,
+                                         true, target_version,
+                                         tmpdir->dir_name,
+                                         false, false, false, true)
+@@ -1973,7 +2037,7 @@
+ 
+                       java_sources[0] = conftest_file_name;
+                       if (!compile_using_javac (java_sources, 1,
+-                                                false, source_version,
++                                                false, source_version_for_javac,
+                                                 true, target_version,
+                                                 tmpdir->dir_name,
+                                                 false, false, false, true)
+@@ -1983,13 +2047,13 @@
+ 
+                           java_sources[0] = conftest_file_name;
+                           if (compile_using_javac (java_sources, 1,
+-                                                   true, source_version,
++                                                   true, source_version_for_javac,
+                                                    true, target_version,
+                                                    tmpdir->dir_name,
+                                                    false, false, false, true))
+                             /* "javac -target $target_version" compiled
+                                conftestfail.java successfully, and
+-                               "javac -target $target_version -source $source_version"
++                               "javac -target $target_version -source $source_version_for_javac"
+                                rejects it.  So the -source option is useful.  */
+                             resultp->source_option = true;
+                         }
+@@ -2008,7 +2072,7 @@
+ 
+               java_sources[0] = conftest_file_name;
+               if (!compile_using_javac (java_sources, 1,
+-                                        true, source_version,
++                                        true, source_version_for_javac,
+                                         true, target_version,
+                                         tmpdir->dir_name,
+                                         false, false, false, true)
+@@ -2016,7 +2080,7 @@
+                   && get_classfile_version (compiled_file_name)
+                      <= corresponding_classfile_version (target_version))
+                 {
+-                  /* "javac -target $target_version -source $source_version"
++                  /* "javac -target $target_version -source $source_version_for_javac"
+                      compiled conftest.java successfully.  */
+                   resultp->source_option = true;
+                   resultp->target_option = true;
+@@ -2087,10 +2151,14 @@
+         bool target_option = false;
+         bool fsource_option = false;
+         bool ftarget_option = false;
++        const char *source_version_for_javac;
+ 
+         if (target_version == NULL)
+           target_version = default_target_version ();
+ 
++        source_version_for_javac =
++          get_source_version_for_javac (source_version, target_version);
++
+         if (is_envjavac_gcj (javac))
+           {
+             /* It's a version of gcj.  */
+@@ -2137,7 +2205,9 @@
+           {
+             /* It's not gcj.  Assume the classfile versions are correct.  */
+             if (is_envjavac_nongcj_usable (javac,
+-                                           source_version, target_version,
++                                           source_version,
++                                           source_version_for_javac,
++                                           target_version,
+                                            &usable,
+                                            &source_option, &target_option))
+               {
+@@ -2161,7 +2231,7 @@
+                : xasprintf ("%s%s%s%s%s%s%s%s%s",
+                             javac,
+                             source_option ? " -source " : "",
+-                            source_option ? source_version : "",
++                            source_option ? source_version_for_javac : "",
+                             target_option ? " -target " : "",
+                             target_option ? target_version : "",
+                             fsource_option ? " -fsource=" : "",
+@@ -2270,11 +2340,16 @@
+       bool usable = false;
+       bool source_option = false;
+       bool target_option = false;
++      const char *source_version_for_javac;
+ 
+       if (target_version == NULL)
+         target_version = default_target_version ();
+ 
+-      if (is_javac_usable (source_version, target_version,
++      source_version_for_javac =
++        get_source_version_for_javac (source_version, target_version);
++
++      if (is_javac_usable (source_version, source_version_for_javac,
++                           target_version,
+                            &usable, &source_option, &target_option))
+         {
+           err = true;
+@@ -2294,7 +2369,7 @@
+                            verbose);
+ 
+           err = compile_using_javac (java_sources, java_sources_count,
+-                                     source_option, source_version,
++                                     source_option, source_version_for_javac,
+                                      target_option, target_version,
+                                      directory, optimize, debug, verbose,
+                                      false);
+--- a/gettext-tools/gnulib-lib/javacomp.h
++++ b/gettext-tools/gnulib-lib/javacomp.h
+@@ -28,7 +28,11 @@
+              1.3             inner classes
+              1.4             assert keyword
+              1.5             generic classes and methods
+-             1.6             (not yet supported)
++             1.6             (not supported)
++             1.7             switch(string)
++             1.8             lambdas
++             9               private interface methods
++            10               type inference for local variables
+    target_version can be:  classfile version:
+              1.1                 45.3
+              1.2                 46.0
+@@ -36,6 +40,10 @@
+              1.4                 48.0
+              1.5                 49.0
+              1.6                 50.0
++             1.7                 51.0
++             1.8                 52.0
++             9                   53.0
++            10                   54.0
+    target_version can also be given as NULL. In this case, the required
+    target_version is determined from the found JVM (see javaversion.h).
+    Specifying target_version is useful when building a library (.jar) that is
+@@ -44,13 +52,19 @@
+    It is unreasonable to ask for:
+      - target_version < 1.4 with source_version >= 1.4, or
+      - target_version < 1.5 with source_version >= 1.5, or
+-     - target_version < 1.6 with source_version >= 1.6,
+-   because even Sun's javac doesn't support these combinations.
++     - target_version < 1.6 with source_version >= 1.6, or
++     - target_version < 1.7 with source_version >= 1.7, or
++     - target_version < 1.8 with source_version >= 1.8, or
++     - target_version < 9 with source_version >= 9, or
++     - target_version < 10 with source_version >= 10,
++   because even Sun's/Oracle's javac doesn't support these combinations.
+    It is redundant to ask for a target_version > source_version, since the
+    smaller target_version = source_version will also always work and newer JVMs
+-   support the older target_versions too. Except for the case
+-   target_version = 1.4, source_version = 1.3, which allows gcj versions 3.0
+-   to 3.2 to be used.
++   support the older target_versions too. Except for the cases
++     - target_version = 1.4, source_version = 1.3, which allows gcj versions 3.0
++       to 3.2 to be used,
++     - target-version = 1.6, source-version = 1.5, which allows gcj versions
++       >= 4.3 to be used.
+ 
+    directory is the target directory. The .class file for class X.Y.Z is
+    written at directory/X/Y/Z.class. If directory is NULL, the .class
+--- a/gettext-tools/gnulib-lib/javaversion.h
++++ b/gettext-tools/gnulib-lib/javaversion.h
+@@ -26,8 +26,8 @@
+ 
+ /* Return information about the Java version used by execute_java_class().
+    This is the value of System.getProperty("java.specification.version").
+-   Some possible values are: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6.  Return NULL if
+-   the Java version cannot be determined.  */
++   Some possible values are: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 9, 10.
++   Return NULL if the Java version cannot be determined.  */
+ extern char * javaexec_version (void);
+ 
+ 
+--- a/gettext-tools/gnulib-m4/javacomp.m4
++++ b/gettext-tools/gnulib-m4/javacomp.m4
+@@ -1,4 +1,4 @@
+-# javacomp.m4 serial 12
++# javacomp.m4 serial 15
+ dnl Copyright (C) 2001-2003, 2006-2007, 2009-2016 Free Software Foundation,
+ dnl Inc.
+ dnl This file is free software; the Free Software Foundation
+@@ -15,7 +15,14 @@
+ #           1.3             inner classes
+ #           1.4             assert keyword
+ #           1.5             generic classes and methods
+-#           1.6             (not yet supported)
++#           1.6             (not supported)
++#           1.7             switch(string)
++#           1.8             lambdas
++#           9               private interface methods
++#          10               type inference for local variables
++# Instead of source-version 1.6, use 1.5, since Java 6 did not introduce any
++# language changes. See
++# http://docs.oracle.com/javase/8/docs/technotes/guides/language/enhancements.html
+ #
+ # target-version can be:  classfile version:
+ #           1.1                 45.3
+@@ -24,6 +31,10 @@
+ #           1.4                 48.0
+ #           1.5                 49.0
+ #           1.6                 50.0
++#           1.7                 51.0
++#           1.8                 52.0
++#           9                   53.0
++#          10                   54.0
+ # The classfile version of a .class file can be determined through the "file"
+ # command. More portably, the classfile major version can be determined through
+ # "od -A n -t d1 -j 7 -N 1 classfile".
+@@ -33,12 +44,18 @@
+ #           1.1         JDK 1.1, jview
+ #           1.2         JDK/JRE 1.2
+ #           1.3         JDK/JRE 1.3, gij 3.3, 3.4
+-#           1.4         JDK/JRE 1.4, gij 4.0, 4.1
+-#           1.5         JDK/JRE 1.5
+-#           1.6         JDK/JRE 1.6
++#           1.4         JDK/JRE 1.4, gij 4.0 ... 4.2
++#           1.5         JDK/JRE 5, gij 4.3 ... 6
++#           1.6         JDK/JRE 6
++#           1.7         JDK/JRE 7
++#           1.8         JDK/JRE 8
++#           9           JDK/JRE 9
++#          10           JDK/JRE 10
+ # Note: gij >= 3.3 can in some cases handle classes compiled with -target 1.4,
+ # and gij >= 4.1 can in some cases partially handle classes compiled with
+-# -target 1.5, but I have no idea how complete this support is.
++# -target 1.5, but I have no idea how complete this support is. Similarly,
++# gcj >= 4.3 supports -ftarget=1.6, and gij >= 4.3 can in some cases handle
++# classes compiled with -target 1.6.
+ #
+ # Specifying target-version is useful when building a library (.jar) that is
+ # useful outside the given package. Omitting target-version is useful when
+@@ -47,14 +64,20 @@
+ # It is unreasonable to ask for:
+ #   - target-version < 1.4 with source-version >= 1.4, or
+ #   - target-version < 1.5 with source-version >= 1.5, or
+-#   - target-version < 1.6 with source-version >= 1.6,
+-# because even Sun's javac doesn't support these combinations.
++#   - target_version < 1.6 with source_version >= 1.6, or
++#   - target_version < 1.7 with source_version >= 1.7, or
++#   - target_version < 1.8 with source_version >= 1.8, or
++#   - target_version < 9 with source_version >= 9, or
++#   - target_version < 10 with source_version >= 10,
++# because even Sun's/Oracle's javac doesn't support these combinations.
+ #
+ # It is redundant to ask for a target-version > source-version, since the
+ # smaller target-version = source-version will also always work and newer JVMs
+-# support the older target-versions too. Except for the case
+-# target-version = 1.4, source-version = 1.3, which allows gcj versions 3.0
+-# to 3.2 to be used.
++# support the older target-versions too. Except for the cases
++#   - target-version = 1.4, source-version = 1.3, which allows gcj versions 3.0
++#     to 3.2 to be used,
++#   - target-version = 1.6, source-version = 1.5, which allows gcj versions
++#     >= 4.3 to be used.
+ 
+ AC_DEFUN([gt_JAVACOMP],
+ [
+@@ -99,7 +122,7 @@
+          CLASSPATH=.${CLASSPATH:+$CLASSPATH_SEPARATOR$CLASSPATH} $CONF_JAVA conftestver 2>&AS_MESSAGE_LOG_FD
+        }`
+        case "$target_version" in
+-         1.1 | 1.2 | 1.3 | 1.4 | 1.5 | 1.6) ;;
++         1.1 | 1.2 | 1.3 | 1.4 | 1.5 | 1.6 | 1.7 | 1.8 | 9 | 10) ;;
+          null)
+            dnl JDK 1.1.X returns null.
+            target_version=1.1 ;;
+@@ -117,6 +140,14 @@
+     1.4) goodcode='class conftest     { static { assert(true); } }'
+          failcode='class conftestfail<T> { T foo() { return null; } }' ;;
+     1.5) goodcode='class conftest<T>     { T foo() { return null; } }'
++         failcode='class conftestfail { void foo () { switch ("A") {} } }' ;;
++    1.7) goodcode='class conftest     { void foo () { switch ("A") {} } }'
++         failcode='class conftestfail { void foo () { Runnable r = () -> {}; } }' ;;
++    1.8) goodcode='class conftest     { void foo () { Runnable r = () -> {}; } }'
++         failcode='interface conftestfail { private void foo () {} }' ;;
++    9)   goodcode='interface conftest     { private void foo () {} }'
++         failcode='class conftestfail { public void m() { var i = new Integer(0); } }' ;;
++    10)  goodcode='class conftest     { public void m() { var i = new Integer(0); } }'
+          failcode='class conftestfail syntax error' ;;
+     *) AC_MSG_ERROR([invalid source-version argument to gt_@&t@JAVACOMP: $source_version]) ;;
+   esac
+@@ -127,6 +158,10 @@
+     1.4) cfversion=48 ;;
+     1.5) cfversion=49 ;;
+     1.6) cfversion=50 ;;
++    1.7) cfversion=51 ;;
++    1.8) cfversion=52 ;;
++    9)   cfversion=53 ;;
++    10)  cfversion=54 ;;
+     *) AC_MSG_ERROR([invalid target-version argument to gt_@&t@JAVACOMP: $target_version]) ;;
+   esac
+   # Function to output the classfile version of a file (8th byte) in decimal.
+@@ -154,14 +189,15 @@
+   dnl   bytecode, which crashes with a VerifyError when executed by Sun Java
+   dnl   1.3.1. The bug is registered as java/7066, see
+   dnl   http://gcc.gnu.org/bugzilla/show_bug.cgi?id=7066
+-  dnl   gcj 4.3 and newer has an option -ftarget=1.X.
++  dnl   gcj 4.3 and newer has an option -ftarget=1.X; the maximum supported
++  dnl   target-version is 1.6.
+   dnl
+   dnl   For gcj < 3.3, the source-version always is 1.3.
+   dnl   For 3.3 <= gcj < 4.3, the source-version defaults to 1.4; option
+   dnl   "-fno-assert" switches to source-version 1.3.
+   dnl   gcj >= 4.3 has an option -fsource=1.X.
+   dnl
+-  dnl The support of Sun javac for target-version and source-version:
++  dnl The support of Sun/Oracle javac for target-version and source-version:
+   dnl
+   dnl   javac 1.3:   -target 1.1 1.2 1.3               default: 1.1
+   dnl                                                  source always: 1.3
+@@ -181,6 +217,34 @@
+   dnl                -target 1.4 only possible with -source 1.3/1.4
+   dnl                -target 1.5 only possible with -source 1.3/1.4/1.5 or no -source
+   dnl
++  dnl   javac 1.7:   -target 1.1 1.2 1.3 1.4 1.5 1.6 1.7  default: 1.7
++  dnl                -source 1.3 1.4 1.5 1.6 1.7          default: 1.7
++  dnl                -target 1.1/1.2/1.3 only possible with -source 1.3
++  dnl                -target 1.4 only possible with -source 1.3/1.4
++  dnl                -target 1.5 only possible with -source 1.3/1.4/1.5
++  dnl                -target 1.6 only possible with -source 1.3/1.4/1.5/1.6
++  dnl
++  dnl   javac 1.8:   -target 1.1 1.2 1.3 1.4 1.5 1.6 1.7 1.8  default: 1.8
++  dnl                -source 1.3 1.4 1.5 1.6 1.7 1.8          default: 1.8
++  dnl                -target 1.1/1.2/1.3 only possible with -source 1.3
++  dnl                -target 1.4 only possible with -source 1.3/1.4
++  dnl                -target 1.5 only possible with -source 1.3/1.4/1.5
++  dnl                -target 1.6 only possible with -source 1.3/1.4/1.5/1.6
++  dnl                -target 1.7 only possible with -source 1.3/1.4/1.5/1.6/1.7
++  dnl
++  dnl   javac 9:     -target 1.6 1.7 1.8 9  default: 9
++  dnl                -source 1.6 1.7 1.8 9  default: 9
++  dnl                -target 1.6 only possible with -source 1.6
++  dnl                -target 1.7 only possible with -source 1.6/1.7
++  dnl                -target 1.8 only possible with -source 1.6/1.7/1.8
++  dnl
++  dnl   javac 10:    -target 1.6 1.7 1.8 9 10  default: 10
++  dnl                -source 1.6 1.7 1.8 9 10  default: 10
++  dnl                -target 1.6 only possible with -source 1.6
++  dnl                -target 1.7 only possible with -source 1.6/1.7
++  dnl                -target 1.8 only possible with -source 1.6/1.7/1.8
++  dnl                -target 9 only possible with -source 1.6/1.7/1.8/9
++  dnl
+   dnl The support of jikes for target-version and source-version:
+   dnl
+   dnl   jikes 1.14 does not have a way to specify the target-version. It
+@@ -322,6 +386,15 @@
+     else
+       dnl It's not gcj. Assume the classfile versions are correct.
+       dnl Try $JAVAC.
++      dnl The javac option '-source 1.5' has the same meaning as '-source 1.6',
++      dnl but since Java 9 supports only the latter, prefer the latter if a
++      dnl target_version >= 1.6 is requested.
++      if test "$source_version" = 1.5; then
++        case "$target_version" in
++          1.1 | 1.2 | 1.3 | 1.4 | 1.5) ;;
++          *) source_version='1.6' ;;
++        esac
++      fi
+       rm -f conftest.class
+       if { echo "$as_me:__oline__: $JAVAC -d . conftest.java" >&AS_MESSAGE_LOG_FD
+            $JAVAC -d . conftest.java >&AS_MESSAGE_LOG_FD 2>&1
+@@ -517,6 +590,15 @@
+       if { javac -version >/dev/null 2>/dev/null || test $? -le 2; } \
+          && ( if javac -help 2>&1 >/dev/null | grep at.dms.kjc.Main >/dev/null && javac -help 2>/dev/null | grep 'released.*2000' >/dev/null ; then exit 1; else exit 0; fi ); then
+         dnl OK, javac works.
++        dnl The javac option '-source 1.5' has the same meaning as '-source 1.6',
++        dnl but since Java 9 supports only the latter, prefer the latter if a
++        dnl target_version >= 1.6 is requested.
++        if test "$source_version" = 1.5; then
++          case "$target_version" in
++            1.1 | 1.2 | 1.3 | 1.4 | 1.5) ;;
++            *) source_version='1.6' ;;
++          esac
++        fi
+         dnl Now test whether it supports the desired target-version and
+         dnl source-version.
+         rm -f conftest.class
+--- a/gettext-tools/src/write-java.c
++++ b/gettext-tools/src/write-java.c
+@@ -1,5 +1,5 @@
+ /* Writing Java ResourceBundles.
+-   Copyright (C) 2001-2003, 2005-2010, 2015-2016 Free Software Foundation, Inc.
++   Copyright (C) 2001-2003, 2005-2010, 2015-2016, 2018 Free Software Foundation, Inc.
+    Written by Bruno Haible <haible@clisp.cons.org>, 2001.
+ 
+    This program is free software: you can redistribute it and/or modify
+@@ -1203,7 +1203,7 @@
+      Java compilers create the class files in the source file's directory -
+      which is in a temporary directory in our case.  */
+   java_sources[0] = java_file_name;
+-  if (compile_java_class (java_sources, 1, NULL, 0, "1.3", "1.1", directory,
++  if (compile_java_class (java_sources, 1, NULL, 0, "1.5", "1.6", directory,
+                           true, false, true, verbose > 0))
+     {
+       if (!verbose)
